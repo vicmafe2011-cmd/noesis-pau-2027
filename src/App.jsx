@@ -12,6 +12,7 @@ import {
   Filter,
   Flame,
   Gamepad2,
+  GraduationCap,
   History,
   Layers3,
   Lightbulb,
@@ -111,15 +112,25 @@ function responseFingerprint(profileId, textId, responses) {
   return `${profileId}|${textId}|${responseText}`;
 }
 
+function getPracticeTexts(profile) {
+  if (!profile.practiceTextIds?.length) return texts;
+  const allowedIds = new Set(profile.practiceTextIds);
+  return texts.filter((text) => allowedIds.has(text.id));
+}
+
 export default function AppV2() {
   const [profileId, setProfileId] = useState(() => {
     const storedProfile = localStorage.getItem("pauProfile");
     return PAU_PROFILES[storedProfile] ? storedProfile : DEFAULT_PROFILE_ID;
   });
   const profile = useMemo(() => getProfile(profileId), [profileId]);
+  const availableTexts = useMemo(() => getPracticeTexts(profile), [profile]);
   const [tab, setTab] = useState("comentario");
   const [selectedTextId, setSelectedTextId] = useState(texts[0].id);
-  const selectedText = useMemo(() => texts.find((text) => text.id === selectedTextId) || texts[0], [selectedTextId]);
+  const selectedText = useMemo(
+    () => availableTexts.find((text) => text.id === selectedTextId) || availableTexts[0] || texts[0],
+    [availableTexts, selectedTextId],
+  );
   const [theoryText, setTheoryText] = useState(texts[0]);
   const [answers, setAnswers] = useState(() => createEmptyResponses(getProfile(localStorage.getItem("pauProfile") || DEFAULT_PROFILE_ID).commentCriteria));
   const [showSolution, setShowSolution] = useState(false);
@@ -148,7 +159,7 @@ export default function AppV2() {
   const [examStarted, setExamStarted] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [examTime, setExamTime] = useState(profile.durationSeconds);
-  const [examText, setExamText] = useState(texts[1] || texts[0]);
+  const [examText, setExamText] = useState(availableTexts[1] || availableTexts[0] || texts[0]);
   const [examResponses, setExamResponses] = useState(() => createEmptyResponses(getProfile(localStorage.getItem("pauProfile") || DEFAULT_PROFILE_ID).examCriteria));
   const [examResult, setExamResult] = useState(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(() => Boolean(localStorage.getItem(`examDraft:${localStorage.getItem("pauProfile") || DEFAULT_PROFILE_ID}`)));
@@ -167,16 +178,16 @@ export default function AppV2() {
     blocks: [{ heading: "Ideas para estudiar", points: [theoryText.thesis, theoryText.solution] }],
   };
 
-  const authors = useMemo(() => [...new Set(texts.map((text) => text.philosopher))].sort(), []);
+  const authors = useMemo(() => [...new Set(availableTexts.map((text) => text.philosopher))].sort(), [availableTexts]);
   const filteredTexts = useMemo(() => {
     const query = normalizeText(searchQuery);
-    return texts.filter((text) => {
+    return availableTexts.filter((text) => {
       const haystack = normalizeText(`${text.title} ${text.philosopher} ${text.work} ${text.theme} ${text.concepts.join(" ")}`);
       return (!query || haystack.includes(query))
         && (authorFilter === "Todos" || text.philosopher === authorFilter)
         && (difficultyFilter === "Todas" || text.difficulty === difficultyFilter);
     });
-  }, [authorFilter, difficultyFilter, searchQuery]);
+  }, [authorFilter, availableTexts, difficultyFilter, searchQuery]);
 
   const commentProgress = useMemo(() => {
     const ratios = profile.commentCriteria.map((criterion) => Math.min(countWords(answers[criterion.id] || "") / criterion.minWords, 1));
@@ -272,7 +283,14 @@ export default function AppV2() {
 
   const handleProfileChange = (nextProfileId) => {
     const nextProfile = getProfile(nextProfileId);
+    const nextTexts = getPracticeTexts(nextProfile);
+    const firstText = nextTexts[0] || texts[0];
     setProfileId(nextProfile.id);
+    setSelectedTextId(firstText.id);
+    setTheoryText(firstText);
+    setSearchQuery("");
+    setAuthorFilter("Todos");
+    setDifficultyFilter("Todas");
     resetComment(nextProfile.commentCriteria);
     setExamStarted(false);
     setExamFinished(false);
@@ -312,7 +330,7 @@ export default function AppV2() {
   };
 
   const startExam = () => {
-    const randomText = texts[Math.floor(Math.random() * texts.length)];
+    const randomText = availableTexts[Math.floor(Math.random() * availableTexts.length)] || texts[0];
     setExamText(randomText);
     setExamResponses(createEmptyResponses(profile.examCriteria));
     setExamTime(profile.durationSeconds);
@@ -395,6 +413,7 @@ export default function AppV2() {
   const seconds = examTime % 60;
   const nav = [
     { id: "comentario", label: "Práctica", icon: ScrollText },
+    { id: "programa", label: "Programa", icon: GraduationCap },
     { id: "teoria", label: "Teoría", icon: Brain },
     { id: "filosofos", label: "Autores", icon: BookOpen },
     { id: "retos", label: "Retos", icon: Gamepad2 },
@@ -440,9 +459,9 @@ export default function AppV2() {
               </div>
               <h2 className="mt-1 text-xl font-black">{profile.label}</h2>
               <p className="mt-1 text-sm text-slate-600">{profile.summary} Duración de referencia: {profile.durationSeconds / 60} minutos.</p>
-              <p className="mt-2 inline-flex rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">{profile.status}</p>
+              <p className={`mt-2 inline-flex rounded-xl border px-3 py-1.5 text-xs font-semibold ${profile.isOfficial ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>{profile.status}</p>
               <a href={profile.officialUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center text-sm font-semibold text-indigo-700 hover:underline">
-                Consultar modelo oficial de referencia ({profile.sourceYear}) <ExternalLink className="ml-1 h-4 w-4" />
+                {profile.isOfficial ? "Consultar modelo oficial" : "Consultar modelo oficial de referencia"} ({profile.sourceYear}) <ExternalLink className="ml-1 h-4 w-4" />
               </a>
             </div>
             <label className="min-w-72 text-sm font-semibold text-slate-700">
@@ -472,9 +491,9 @@ export default function AppV2() {
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div><p className="text-sm font-bold text-indigo-700">Banco de práctica</p><h2 className="text-2xl font-black">Fragmentos únicos</h2></div>
-                    <Badge>{filteredTexts.length}/{texts.length}</Badge>
+                    <Badge>{filteredTexts.length}/{availableTexts.length}</Badge>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Adaptaciones didácticas para entrenar; no son ediciones críticas ni reproducciones de exámenes oficiales.</p>
+                  <p className="mt-2 text-xs text-slate-500">{profile.practiceTextIds?.length ? "Selección compatible con los conjuntos oficiales del perfil activo. " : ""}Adaptaciones didácticas para entrenar; no son ediciones críticas ni reproducciones de exámenes oficiales.</p>
                   <div className="relative mt-4">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Buscar autor, obra o concepto" className="w-full rounded-2xl border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-indigo-600" />
@@ -543,6 +562,80 @@ export default function AppV2() {
                   </div>
                 </Card>
               </div>
+            </motion.section>
+          )}
+
+          {tab === "programa" && (
+            <motion.section key="programa" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-5">
+              <Card className="overflow-hidden bg-gradient-to-br from-indigo-50 to-violet-50">
+                <div className="p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-bold text-indigo-700">Programa activo</p>
+                      <h2 className="mt-1 flex items-center text-3xl font-black"><GraduationCap className="mr-3 h-8 w-8" />{profile.label}</h2>
+                      <p className="mt-2 max-w-4xl text-slate-600">{profile.summary}</p>
+                      {profile.examDates && <p className="mt-3 rounded-2xl border border-indigo-200 bg-white/70 px-4 py-3 text-sm font-semibold text-indigo-950">{profile.examDates}</p>}
+                    </div>
+                    <Badge>{profile.isOfficial ? "Documentación oficial 2027" : `Referencia ${profile.sourceYear}`}</Badge>
+                  </div>
+                  <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {profile.examCriteria.map((criterion) => (
+                      <div key={criterion.id} className="rounded-2xl border border-white bg-white/80 p-4 shadow-sm">
+                        <div className="flex items-start justify-between gap-3"><h3 className="text-sm font-black">{criterion.label}</h3><Badge>{criterion.max} p.</Badge></div>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">{criterion.recommendedWords}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              {profile.programBlocks?.length ? (
+                <div className="grid gap-5 lg:grid-cols-3">
+                  {profile.programBlocks.map((block) => (
+                    <Card key={block.title}>
+                      <div className="p-6">
+                        <h2 className="text-xl font-black">{block.title}</h2>
+                        <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-slate-700">
+                          {block.topics.map((topic) => <li key={topic}>{topic}</li>)}
+                        </ul>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card><div className="p-6"><h2 className="text-xl font-black">Estructura de preparación</h2><p className="mt-2 text-sm text-slate-600">Este perfil reproduce los apartados y ponderaciones del último modelo oficial de referencia disponible. El programa territorial detallado se incorporará cuando su comisión publique la documentación específica de 2027.</p></div></Card>
+              )}
+
+              {profile.referenceTexts?.length && (
+                <Card>
+                  <div className="p-6">
+                    <p className="text-sm font-bold text-indigo-700">Lecturas prescritas</p>
+                    <h2 className="mt-1 text-2xl font-black">Conjuntos oficiales de textos</h2>
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      {profile.referenceTexts.map((group) => (
+                        <div key={group.title} className="rounded-3xl bg-slate-100 p-5">
+                          <h3 className="font-black">{group.title}</h3>
+                          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-slate-700">{group.works.map((work) => <li key={work}>{work}</li>)}</ul>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-slate-500">El banco de práctica ofrece adaptaciones didácticas identificadas como tales; consulta siempre las ediciones indicadas por la comisión para estudiar los textos completos.</p>
+                  </div>
+                </Card>
+              )}
+
+              <Card>
+                <div className="p-6">
+                  <h2 className="text-2xl font-black">Fuentes oficiales</h2>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {(profile.officialResources || [{ label: `Modelo oficial de referencia (${profile.sourceYear})`, url: profile.officialUrl }]).map((resource) => (
+                      <a key={resource.url} href={resource.url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-800 transition hover:border-indigo-400 hover:bg-indigo-100">
+                        {resource.label}<ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </Card>
             </motion.section>
           )}
 

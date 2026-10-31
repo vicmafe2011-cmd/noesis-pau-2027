@@ -21,8 +21,21 @@ test("los perfiles de referencia suman 4 puntos en comentario y 10 en examen", (
     assert.equal(getMaximumScore(profile.examCriteria), 10);
     assert.equal(profile.durationSeconds, 90 * 60);
     assert.equal(profile.targetYear, 2027);
-    assert.equal(profile.sourceYear, 2026);
+    assert.ok([2026, 2027].includes(profile.sourceYear));
   }
+});
+
+test("Canarias reproduce el modelo y el programa oficiales de 2027", () => {
+  const profile = PAU_PROFILES["canarias-2027"];
+
+  assert.equal(profile.sourceYear, 2027);
+  assert.equal(profile.isOfficial, true);
+  assert.deepEqual(profile.examCriteria.map((criterion) => criterion.max), [2, 2, 3, 3]);
+  assert.equal(profile.programBlocks.length, 3);
+  assert.equal(profile.referenceTexts.length, 4);
+  assert.equal(profile.officialResources.length, 4);
+  assert.ok(profile.practiceTextIds.includes("wollstonecraft1"));
+  assert.ok(profile.practiceTextIds.includes("beauvoir1"));
 });
 
 test("una respuesta vacía obtiene cero y feedback por cada criterio", () => {

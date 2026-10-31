@@ -26,8 +26,8 @@ const DEFINITION_MARKERS = [
 ];
 
 const AUTHOR_NAMES = [
-  "agustín", "aquino", "arendt", "aristóteles", "beauvoir", "descartes", "hume", "kant", "locke", "marx",
-  "nietzsche", "ortega", "platón", "rousseau", "sócrates", "tomás", "wollstonecraft",
+  "agustín", "aquino", "arendt", "aristóteles", "beauvoir", "descartes", "hume", "kant", "locke", "luxemburg", "marx",
+  "nietzsche", "ortega", "platón", "rousseau", "sartre", "sócrates", "tomás", "wollstonecraft",
 ];
 
 export function normalizeText(value = "") {
